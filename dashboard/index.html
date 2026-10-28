@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executive SaaS Metrics</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --wash: #f0efec;
+  --series-1: #2a78d6;
+  --target: #52514e;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --wash: #262624; --series-1: #3987e5; --target: #c3c2b7; --good-text: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --wash: #262624; --series-1: #3987e5; --target: #c3c2b7; --good-text: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 15px/1.5 var(--font); -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
+
+header { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+.eyebrow { font-size: 13px; color: var(--ink-2); margin: 0 0 2px; }
+h1 { font-size: 24px; line-height: 1.2; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+.refresh { font-size: 13px; color: var(--ink-2); display: grid; gap: 2px; }
+.refresh b { color: var(--ink); font-weight: 600; }
+
+.notice {
+  font-size: 13px; color: var(--ink-2); background: var(--wash);
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 16px;
+}
+.summary { font-size: 15px; margin: 0 0 20px; max-width: 70ch; }
+
+.cards { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1140px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; display: flex; flex-direction: column; min-width: 0;
+}
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.card h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.period { font-size: 12px; color: var(--muted); margin: 0; }
+.status {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  font-size: 12px; font-weight: 600; color: var(--ink);
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px 2px 6px;
+}
+.status svg { width: 14px; height: 14px; }
+
+.value-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 10px 0 2px; }
+.value { font-size: 36px; font-weight: 650; line-height: 1.1; letter-spacing: -0.02em; }
+.delta { font-size: 13px; font-weight: 600; }
+.delta.good { color: var(--good-text); }
+.delta.bad { color: var(--critical); }
+.delta.flat { color: var(--ink-2); }
+.vs-target { font-size: 13px; color: var(--ink-2); margin: 0 0 10px; }
+.vs-target b { color: var(--ink); font-weight: 600; }
+
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 18px; height: 8px; }
+.legend button {
+  margin-left: auto; font: inherit; font-size: 12px; color: var(--ink-2); background: none;
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; min-height: 28px;
+}
+.legend button:hover { background: var(--wash); }
+
+.chart { position: relative; height: 190px; touch-action: pan-y; }
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.chart text { font-family: var(--font); font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.tip {
+  position: absolute; top: 0; pointer-events: none; z-index: 2;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 8px 10px; font-size: 12px;
+  min-width: 150px; opacity: 0; transition: opacity .1s;
+}
+.tip.on { opacity: 1; }
+.tip .t { font-weight: 600; margin-bottom: 4px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-2); }
+.tip .r b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--grid); }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data th { color: var(--ink-2); font-weight: 600; }
+.table-wrap { max-height: 190px; overflow: auto; }
+
+.method { margin-top: 14px; border-top: 1px solid var(--grid); padding-top: 12px; font-size: 13px; }
+.method .label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+.formula {
+  font-family: var(--mono); font-size: 12px; line-height: 1.5; background: var(--wash);
+  border-radius: 6px; padding: 8px 10px; margin: 0; white-space: pre-wrap; word-break: break-word;
+}
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--ink-2); font-weight: 600; padding: 6px 0; min-height: 32px; }
+details ul { margin: 4px 0 0; padding-left: 18px; color: var(--ink-2); }
+details li { margin-bottom: 4px; }
+details li b { color: var(--ink); font-weight: 600; }
+dl.meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 8px 0 0; font-size: 12px; }
+dl.meta dt { color: var(--muted); }
+dl.meta dd { margin: 0; color: var(--ink-2); }
+
+section.recon { margin-top: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+section.recon h2 { font-size: 17px; margin: 0 0 4px; font-weight: 600; }
+section.recon > p { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; max-width: 75ch; }
+.recon-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .recon-grid { grid-template-columns: 1.1fr 1fr; } }
+.recon h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.bridge { width: 100%; border-collapse: collapse; font-size: 14px; }
+.bridge td { padding: 8px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+.bridge td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 12px; font-weight: 600; }
+.bridge tr.total td { border-bottom: none; border-top: 2px solid var(--axis); font-weight: 650; }
+.bridge small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.compare { width: 100%; border-collapse: collapse; font-size: 13px; }
+.compare th, .compare td { text-align: left; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+.compare th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+.compare td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
+footer p { margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Bank Indonesia · DLDS</p>
+      <h1>Executive SaaS Metrics</h1>
+    </div>
+    <div class="refresh" id="refresh"></div>
+  </header>
+
+  <div class="notice" role="note">
+    <b>Sample data.</b> All figures below are placeholders. Replace the <code>DATA</code> object in this file with your weekly extract.
+  </div>
+
+  <p class="summary" id="summary"></p>
+
+  <div class="cards" id="cards"></div>
+
+  <section class="recon" aria-labelledby="recon-h">
+    <h2 id="recon-h">Why this MRR differs from the Finance report</h2>
+    <p>Finance reports <em>recognized revenue</em>, which spreads annual contracts by day and includes one-time and usage charges. This dashboard reports <em>MRR</em>, the recurring run-rate. Both figures are correct, but they measure different things. The bridge below takes the most recent closed month from Finance's number to this dashboard's number. If any line is not explained here, the definitions have drifted apart and the gap needs investigating.</p>
+    <div class="recon-grid">
+      <div>
+        <h3 id="bridge-h"></h3>
+        <table class="bridge" id="bridge" aria-labelledby="bridge-h"></table>
+      </div>
+      <div>
+        <h3>The same annual contract, two treatments</h3>
+        <table class="compare" id="compare"></table>
+        <p style="font-size:12px;color:var(--muted);margin:8px 0 0">Example: one annual subscription, contract value Rp 120 m, excluding PPN.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p id="foot-def"></p>
+    <p>Refresh: every Monday 06:00 WIB from the subscription billing system. Churn and LTV/CAC update after each month-end close because they depend on closed-month GL data.</p>
+  </footer>
+</div>
+
+<script>
+/* ---------------------------------------------------------------
+   DATA: replace weekly. Monetary values in IDR billions (Rp bn).
+   --------------------------------------------------------------- */
+const DATA = {
+  asOf: "2026-10-25",          // snapshot date (Sunday 23:59 WIB)
+  nextRefresh: "2026-11-02",
+  definitionsVersion: "v1.0",
+  definitionsStatus: "Pending Finance sign-off",   // change to "Agreed with Finance, <date>"
+  owner: "[Metric owner]",
+  mrr: {
+    // month-end MRR; the last point is the current weekly snapshot
+    labels: ["Nov 25","Dec 25","Jan 26","Feb 26","Mar 26","Apr 26","May 26","Jun 26","Jul 26","Aug 26","Sep 26","Oct 26*"],
+    actual: [3.62,3.70,3.79,3.85,3.97,4.06,4.12,4.25,4.33,4.41,4.52,4.58],
+    target: [3.60,3.71,3.82,3.93,4.05,4.17,4.30,4.43,4.56,4.70,4.84,4.98],
+  },
+  churn: {
+    // monthly logo churn %, closed months only
+    labels: ["Oct 25","Nov 25","Dec 25","Jan 26","Feb 26","Mar 26","Apr 26","May 26","Jun 26","Jul 26","Aug 26","Sep 26"],
+    actual: [2.1,1.9,2.0,1.8,1.7,1.9,1.6,1.5,1.6,1.4,1.4,1.3],
+    target: [1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5,1.5],
+    mtdChurnedLogos: 9,
+  },
+  ltvcac: {
+    labels: ["Oct 25","Nov 25","Dec 25","Jan 26","Feb 26","Mar 26","Apr 26","May 26","Jun 26","Jul 26","Aug 26","Sep 26"],
+    actual: [2.6,2.7,2.7,2.8,2.9,2.8,3.0,3.1,3.0,3.2,3.1,3.3],
+    target: [3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0,3.0],
+  },
+  // Bridge from Finance recognized revenue to dashboard MRR, latest closed month (Rp bn)
+  bridge: {
+    month: "September 2026",
+    financeRecognized: 4.78,
+    oneTime: -0.19,
+    usage: -0.11,
+    dayCount: +0.04,
+    mrr: 4.52,
+  },
+};
+
+/* --------------------------- helpers --------------------------- */
+const $ = (s, el = document) => el.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const fmtDate = d => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const rp = v => "Rp " + v.toFixed(2) + " bn";
+const pct = v => v.toFixed(1) + "%";
+const ratio = v => v.toFixed(1) + "×";
+const signed = (v, f) => (v > 0 ? "+" : v < 0 ? "−" : "±") + f(Math.abs(v));
+
+const ICONS = {
+  good: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--good)"/><path d="M4.8 8.2l2.1 2.1 4.3-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warning: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l7 12.5H1z" fill="var(--warning)"/><path d="M8 6v4" stroke="#0b0b0b" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="12" r=".95" fill="#0b0b0b"/></svg>',
+  critical: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--critical)"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
+};
+
+function niceTicks(min, max, count = 4) {
+  const span = max - min || 1;
+  const raw = span / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw);
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+  const t = [];
+  for (let v = lo; v <= hi + step / 2; v += step) t.push(+v.toFixed(6));
+  return t;
+}
+
+function el(tag, attrs = {}, parent) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+/* ------------------------- line chart -------------------------- */
+function drawChart(box, m) {
+  const W = box.clientWidth, H = box.clientHeight;
+  box.querySelector("svg")?.remove();
+  const tip = box.querySelector(".tip");
+  const pad = { t: 10, r: 46, b: 22, l: 40 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const all = m.actual.concat(m.target);
+  const ticks = niceTicks(Math.min(...all), Math.max(...all));
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const n = m.actual.length;
+  const x = i => pad.l + (iw * i) / (n - 1);
+  const y = v => pad.t + ih - ((v - y0) / (y1 - y0)) * ih;
+
+  const svg = el("svg", { role: "img", "aria-label": m.aria });
+  box.insertBefore(svg, tip);
+
+  ticks.forEach(t => {
+    el("line", { x1: pad.l, x2: pad.l + iw, y1: y(t), y2: y(t), stroke: "var(--grid)", "stroke-width": 1, "shape-rendering": "crispEdges" }, svg);
+    el("text", { x: pad.l - 6, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = m.tick(t);
+  });
+  // x labels: thin out on narrow screens
+  const every = iw < 260 ? 3 : iw < 420 ? 2 : 1;
+  m.labels.forEach((l, i) => {
+    if ((n - 1 - i) % every) return;
+    el("text", { x: x(i), y: H - 4, "text-anchor": "middle" }, svg).textContent = l.split(" ")[0] + (l.endsWith("*") ? "*" : "");
+  });
+
+  const path = arr => arr.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join("");
+  // target: dashed reference line
+  el("path", { d: path(m.target), fill: "none", stroke: "var(--target)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, svg);
+  // actual: area wash + 2px line
+  el("path", { d: path(m.actual) + `L${x(n - 1)},${pad.t + ih}L${x(0)},${pad.t + ih}Z`, fill: "var(--series-1)", opacity: 0.08 }, svg);
+  el("path", { d: path(m.actual), fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+
+  // end labels (actual + target), nudged apart if they collide
+  let ya = y(m.actual[n - 1]), yt = y(m.target[n - 1]);
+  if (Math.abs(ya - yt) < 13) { const mid = (ya + yt) / 2, s = ya < yt ? -1 : 1; ya = mid + s * 6.5; yt = mid - s * 6.5; }
+  el("circle", { cx: x(n - 1), cy: y(m.actual[n - 1]), r: 4, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  const la = el("text", { x: x(n - 1) + 8, y: ya + 4 }, svg); la.textContent = m.tick(m.actual[n - 1]); la.style.fill = "var(--ink)"; la.style.fontWeight = 600;
+  el("text", { x: x(n - 1) + 8, y: yt + 4 }, svg).textContent = m.tick(m.target[n - 1]);
+
+  // hover / touch layer
+  const cross = el("line", { y1: pad.t, y2: pad.t + ih, stroke: "var(--axis)", "stroke-width": 1, opacity: 0 }, svg);
+  const dot = el("circle", { r: 4.5, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg);
+  const hit = el("rect", { x: pad.l - 12, y: 0, width: iw + 24, height: H, fill: "transparent" }, svg);
+  const show = e => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left - pad.l) / iw) * (n - 1))));
+    const a = m.actual[i], t = m.target[i];
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", 1);
+    dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(a)); dot.setAttribute("opacity", 1);
+    tip.innerHTML = `<div class="t">${m.labels[i].replace("*", " (weekly snapshot)")}</div>
+      <div class="r">Actual <b>${m.fmt(a)}</b></div>
+      <div class="r">Target <b>${m.fmt(t)}</b></div>
+      <div class="r">vs target <b>${m.variance(a, t)}</b></div>`;
+    tip.classList.add("on");
+    const tw = tip.offsetWidth;
+    let left = x(i) + 12;
+    if (left + tw > W) left = x(i) - tw - 12;
+    tip.style.left = Math.max(0, left) + "px";
+  };
+  const hide = () => { tip.classList.remove("on"); cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); };
+  hit.addEventListener("pointermove", show);
+  hit.addEventListener("pointerdown", show);
+  hit.addEventListener("pointerleave", hide);
+}
+
+/* ------------------------- metric cards ------------------------ */
+const METRICS = [
+  {
+    key: "mrr", title: "Monthly recurring revenue",
+    period: () => `Weekly snapshot, ${fmtDate(DATA.asOf)}`,
+    fmt: rp, tick: v => v.toFixed(1), higherIsBetter: true,
+    deltaFmt: v => "Rp " + v.toFixed(2) + " bn", deltaLabel: "vs Sep month-end",
+    variance: (a, t) => signed(a - t, v => v.toFixed(2)) + " bn (" + Math.round((a / t) * 100) + "%)",
+    status: (a, t) => (a / t >= 0.98 ? "good" : a / t >= 0.9 ? "warning" : "critical"),
+    statusText: { good: "On target", warning: "Behind target", critical: "Off target" },
+    targetLine: (a, t) => `Target <b>${rp(t)}</b> · <b>${Math.round((a / t) * 100)}%</b> attained`,
+    formula: `MRR = Σ normalized monthly value of every
+      subscription active at snapshot
+
+monthly    → invoice amount
+quarterly  → amount ÷ 3
+annual     → contract value ÷ 12
+multi-year → contract value ÷ term months`,
+    details: [
+      "<b>Flat ÷ 12 for annual plans</b>, not daily proration. Every month carries the same value whatever its length. This is the main reason the figure differs from Finance's recognized revenue (see reconciliation below).",
+      "<b>Net of recurring discounts</b>: uses the contracted price after discount, excluding PPN (VAT).",
+      "<b>Excludes</b> one-time setup or implementation fees, usage overages, and credits or refunds.",
+      "<b>Active</b> means start date ≤ snapshot date < end date and the subscription is not cancelled. Customers who have given notice stay in MRR until their end date.",
+      "<b>Point-in-time</b>: past months use the month-end value. Oct 26* is the latest weekly snapshot, not a closed month.",
+    ],
+    source: "Billing system, subscriptions table",
+    sql: `CASE billing_interval
+  WHEN 'monthly'   THEN net_amount
+  WHEN 'quarterly' THEN net_amount / 3.0
+  WHEN 'annual'    THEN net_amount / 12.0
+  ELSE net_amount / term_months
+END AS normalized_mrr`,
+  },
+  {
+    key: "churn", title: "Customer churn rate",
+    period: () => "September 2026, latest closed month",
+    fmt: pct, tick: v => v.toFixed(1) + "%", higherIsBetter: false,
+    deltaFmt: v => v.toFixed(1) + " pt", deltaLabel: "vs Aug",
+    variance: (a, t) => signed(a - t, v => v.toFixed(1)) + " pt",
+    status: (a, t) => (a <= t ? "good" : a <= t * 1.2 ? "warning" : "critical"),
+    statusText: { good: "On target", warning: "Above target", critical: "Off target" },
+    targetLine: (a, t) => `Target <b>≤ ${pct(t)}</b> · October so far: <b>${DATA.churn.mtdChurnedLogos} logos</b> lost (month to date)`,
+    formula: `Churn % = customers lost in month
+        ÷ customers active on day 1
+        × 100`,
+    details: [
+      "<b>Logo churn</b>: counts customers, not revenue. A customer is lost when they have no active subscription on day 1 of the following month.",
+      "<b>Annual plans</b> count as churned in the month their term ends without renewal, not the month they give notice.",
+      "<b>Excludes</b> downgrades (a customer who stays but pays less is not churned) and customers acquired during the month (they are in neither the numerator nor the denominator).",
+      "<b>Closed months only.</b> A partial month understates churn, so the weekly refresh shows a month-to-date count of lost logos instead of a rate.",
+    ],
+    source: "Billing system, customer-level subscription status",
+  },
+  {
+    key: "ltvcac", title: "LTV / CAC ratio",
+    period: () => "September 2026, trailing 3 months",
+    fmt: ratio, tick: v => v.toFixed(1) + "×", higherIsBetter: true,
+    deltaFmt: v => v.toFixed(1) + "×", deltaLabel: "vs Aug",
+    variance: (a, t) => signed(a - t, v => v.toFixed(1)) + "×",
+    status: (a, t) => (a >= t ? "good" : a >= t * 0.85 ? "warning" : "critical"),
+    statusText: { good: "On target", warning: "Below target", critical: "Off target" },
+    targetLine: (a, t) => `Target <b>≥ ${ratio(t)}</b> · each Rp 1 of acquisition spend returns <b>Rp ${a.toFixed(1)}</b> gross profit`,
+    formula: `LTV/CAC = LTV ÷ CAC
+
+LTV = (MRR ÷ active customers)
+      × gross margin %
+      ÷ avg monthly churn % (3 mo)
+
+CAC = sales + marketing spend (3 mo)
+      ÷ new customers (3 mo)`,
+    details: [
+      "<b>ARPA uses the same normalized MRR</b> as the MRR card, so the two cards always agree.",
+      "<b>Gross margin</b> is subscription gross margin from the closed-month P&L (hosting, support and third-party licence costs).",
+      "<b>Trailing 3 months</b> for both churn and CAC, to smooth out lumpy monthly sales and marketing spend.",
+      "<b>Fully loaded CAC</b>: salaries, commissions, campaigns and tools for sales and marketing, divided by new customers in the same window.",
+      "Updates after month-end close because it needs General Ledger (GL) expense data.",
+    ],
+    source: "Billing system (MRR, churn) + General Ledger (S&M expense, gross margin)",
+  },
+];
+
+function renderCard(m) {
+  const d = DATA[m.key];
+  const n = d.actual.length;
+  const a = d.actual[n - 1], prev = d.actual[n - 2], t = d.target[n - 1];
+  const diff = +(a - prev).toFixed(4);
+  const goodDir = diff === 0 ? "flat" : (diff > 0) === m.higherIsBetter ? "good" : "bad";
+  const st = m.status(a, t);
+  const id = "c-" + m.key;
+
+  const card = document.createElement("article");
+  card.className = "card";
+  card.setAttribute("aria-labelledby", id + "-h");
+  card.innerHTML = `
+    <div class="card-head">
+      <div><h2 id="${id}-h">${m.title}</h2><p class="period">${m.period()}</p></div>
+      <span class="status">${ICONS[st]}${m.statusText[st]}</span>
+    </div>
+    <div class="value-row">
+      <span class="value">${m.fmt(a)}</span>
+      <span class="delta ${goodDir}">${diff === 0 ? "±" : diff > 0 ? "▲ +" : "▼ −"}${m.deltaFmt(Math.abs(diff))} ${m.deltaLabel}</span>
+    </div>
+    <p class="vs-target">${m.targetLine(a, t)}</p>
+    <div class="legend">
+      <span><svg viewBox="0 0 18 8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--series-1)" stroke-width="2"/></svg>Actual</span>
+      <span><svg viewBox="0 0 18 8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--target)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>Target</span>
+      <button type="button" aria-pressed="false">Table</button>
+    </div>
+    <div class="chart"><div class="tip" aria-hidden="true"></div></div>
+    <div class="table-wrap" hidden>
+      <table class="data"><thead><tr><th>Month</th><th>Actual</th><th>Target</th><th>vs target</th></tr></thead>
+      <tbody>${d.labels.map((l, i) => `<tr><td>${l}</td><td>${m.fmt(d.actual[i])}</td><td>${m.fmt(d.target[i])}</td><td>${m.variance(d.actual[i], d.target[i])}</td></tr>`).reverse().join("")}</tbody></table>
+    </div>
+    <div class="method">
+      <p class="label">How it's calculated</p>
+      <pre class="formula">${m.formula}</pre>
+      <details>
+        <summary>Full definition</summary>
+        <ul>${m.details.map(x => `<li>${x}</li>`).join("")}</ul>
+        ${m.sql ? `<p class="label" style="margin-top:10px">Normalization (SQL)</p><pre class="formula">${m.sql}</pre>` : ""}
+        <dl class="meta">
+          <dt>Source</dt><dd>${m.source}</dd>
+          <dt>Definition</dt><dd>${DATA.definitionsVersion}, ${DATA.definitionsStatus}</dd>
+          <dt>Owner</dt><dd>${DATA.owner}</dd>
+        </dl>
+      </details>
+    </div>`;
+
+  const chart = $(".chart", card), tableWrap = $(".table-wrap", card), btn = $(".legend button", card);
+  const cfg = { ...m, ...d, aria: `${m.title}, last 12 months: ${m.fmt(d.actual[0])} to ${m.fmt(a)}; target ${m.fmt(t)}` };
+  btn.addEventListener("click", () => {
+    const tbl = btn.getAttribute("aria-pressed") === "false";
+    btn.setAttribute("aria-pressed", tbl);
+    btn.textContent = tbl ? "Chart" : "Table";
+    chart.hidden = tbl; tableWrap.hidden = !tbl;
+    if (!tbl) drawChart(chart, cfg);
+  });
+  $("#cards").appendChild(card);
+  new ResizeObserver(() => { if (!chart.hidden) drawChart(chart, cfg); }).observe(chart);
+  return { st, a, t };
+}
+
+/* ---------------------------- page ----------------------------- */
+$("#refresh").innerHTML = `<span>Data as of <b>${fmtDate(DATA.asOf)}</b></span><span>Next refresh ${fmtDate(DATA.nextRefresh)} · weekly</span>`;
+const results = METRICS.map(renderCard);
+
+const [r0, r1, r2] = results;
+$("#summary").textContent =
+  `MRR is ${rp(r0.a)}, ${Math.round((r0.a / r0.t) * 100)}% of the ${rp(r0.t)} target. ` +
+  `Churn (${pct(r1.a)}) and LTV/CAC (${ratio(r2.a)}) are ${r1.st === "good" && r2.st === "good" ? "both meeting target" : "not both meeting target"}` +
+  (r0.st !== "good" && r1.st === "good" ? `, so the MRR shortfall points to new-customer volume rather than retention.` : `.`);
+
+const b = DATA.bridge;
+$("#bridge-h").textContent = `Bridge: ${b.month}`;
+const rows = [
+  ["Finance: recognized subscription revenue", "From the monthly management report", b.financeRecognized, false],
+  ["Remove one-time fees", "Setup and implementation are not recurring", b.oneTime, true],
+  ["Remove usage overages", "Variable charges, not contracted run-rate", b.usage, true],
+  ["Day-count adjustment on annual plans", "Finance: value ÷ 365 × days in month. MRR: value ÷ 12. Negative in 31-day months, positive in 30-day months and February.", b.dayCount, true],
+];
+const check = +(b.financeRecognized + b.oneTime + b.usage + b.dayCount).toFixed(2);
+$("#bridge").innerHTML =
+  rows.map(([l, s, v, sg]) => `<tr><td>${l}<small>${s}</small></td><td class="n">${sg ? signed(v, x => x.toFixed(2)) : v.toFixed(2)}</td></tr>`).join("") +
+  `<tr class="total"><td>Dashboard MRR (month-end)${check !== b.mrr ? `<small style="color:var(--critical)">Unexplained gap: ${(b.mrr - check).toFixed(2)} bn</small>` : `<small>Fully reconciled, no unexplained gap</small>`}</td><td class="n">${rp(b.mrr)}</td></tr>`;
+
+const ACV = 120;
+const rec = days => (ACV / 365) * days;
+$("#compare").innerHTML = `<thead><tr><th>Month</th><th>Finance (÷365 × days)</th><th>MRR (÷12)</th></tr></thead><tbody>` +
+  [["Jan (31 days)", 31], ["Feb (28 days)", 28], ["Sep (30 days)", 30]]
+    .map(([l, dd]) => `<tr><td>${l}</td><td class="n">Rp ${rec(dd).toFixed(2)} m</td><td class="n">Rp ${(ACV / 12).toFixed(2)} m</td></tr>`).join("") +
+  `<tr><td>Full year</td><td class="n">Rp ${ACV.toFixed(2)} m</td><td class="n">Rp ${ACV.toFixed(2)} m</td></tr></tbody>`;
+
+$("#foot-def").textContent = `Metric definitions ${DATA.definitionsVersion} (${DATA.definitionsStatus}). Owner: ${DATA.owner}. Any change to a formula must be updated on the card and in the Finance data dictionary at the same time.`;
+</script>
+</body>
+</html>
